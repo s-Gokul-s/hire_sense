@@ -1,41 +1,47 @@
-#  FastAPI Route to Upload and Extract Text from Job Description
+# jd.py (Updated)
 
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from typing import Optional
 from app.services.textextract_service import extract_text_from_file
 import os
 
+# Import the shared 'db' from the matcher route
+from .matcher import db 
 
 router = APIRouter()
 
 @router.post("/upload-jd")
-
 async def upload_jd(
     jd_text: Optional[str] = Form(None),
-    jd_upload: Optional[UploadFile] = File(None)  
+    jd_upload: Optional[UploadFile] = File(None)
 ):
     """
-    Accept JD as plain text or upload a PDF/DOCX/TXT file.
-    Returns extracted content.
+    Accept JD as plain text or upload a PDF/DOCX/TXT file,
+    then store the content for the matching process.
     """
-    if jd_text:
-        return{
-            "source":"text",
-            "content": jd_text.strip()
-        }
-    elif jd_upload and isinstance(jd_upload, UploadFile):
+    content = ""
+    filename = "text_input" # A default name for text input
+
+    if not jd_text and not jd_upload:
+        raise HTTPException(status_code=400, detail="Either JD text or JD file must be provided.")
+
+    if jd_upload:
         try:
-            file_type = os.path.splitext(jd_upload.filename)[1].lower().replace('.', '')
-            content =  extract_text_from_file(jd_upload.file,jd_upload.content_type)
-            return {
-                "source":file_type,
-                "filename":jd_upload.filename,
-                "content": content
-                }
+            content = extract_text_from_file(jd_upload.file, jd_upload.content_type)
+            filename = jd_upload.filename
         except Exception as e:
-            raise HTTPException(status_code=400, detail="Error extracting text from file ")
-    else:
-            raise HTTPException(status_code=400, detail="Either JD text or JD file must be provided.")
+            raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+    
+    # Use 'elif' since we prioritize the file upload
+    elif jd_text:
+        content = jd_text.strip()
 
-
-        
+    # --- KEY ADDITION ---
+    # Store the extracted content and filename in the shared 'db' dictionary.
+    db["jd"] = {"filename": filename, "content": content}
+    
+    # Return a success message confirming the action.
+    return {
+        "message": "Job Description uploaded and processed successfully.",
+        "jd_details": db["jd"]
+    }

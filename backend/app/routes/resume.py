@@ -1,29 +1,35 @@
-# FastAPI Route to Upload and Extract Text from Resumes
+# resume.py (Updated)
 
-from fastapi import APIRouter,UploadFile,File # FastAPI tools for routing and file uploads
-from typing import List # Type hint for a list of files
-from app.services.textextract_service import extract_text_from_pdf_file # Import the function to extract text from a PDF file 
+from fastapi import APIRouter, UploadFile, File
+from typing import List
+# --- CHANGE 1: Import the unified extractor for more flexibility ---
+from app.services.textextract_service import extract_text_from_file
+# --- CHANGE 2: Import the shared 'db' from the matcher route ---
+from .matcher import db
 
-# Create a router for the resume endpoint
 router = APIRouter()
-# Define the endpoint for uploading a resume
-@router.post("/upload-resumes/")
 
+@router.post("/upload-resumes/")
 async def upload_resumes(files: List[UploadFile] = File(...)):
     """
-    Endpoint to upload one or more resume PDF files and extract their text content.
-    Args:
-        files (List[UploadFile]): List of uploaded PDF files.
-    Returns:
-        List[dict]: List of dictionaries containing filename and extracted text.
+    Endpoint to upload one or more resume files (PDF, DOCX, TXT),
+    extract their text, and store it for the matching process.
     """
-    extracted_data=[]
+    # --- CHANGE 3: Clear any old resumes to start a fresh session ---
+    db["resumes"] = [] 
+    
     for file in files:
-        # Read and extract text content from the uploaded PDF file
-        content = extract_text_from_pdf_file(file.file)
-        extracted_data.append({
-            "source": file,
+        # Use the unified extractor to handle different file types
+        content = extract_text_from_file(file.file, file.content_type)
+        
+        # --- CHANGE 4: Add the extracted resume data to the shared 'db' ---
+        db["resumes"].append({
             "filename": file.filename,
             "content": content
         })
-    return extracted_data
+        
+    # --- CHANGE 5: Return a clear success message ---
+    return {
+        "message": f"{len(db['resumes'])} resumes uploaded and processed successfully.",
+        "filenames": [r["filename"] for r in db["resumes"]]
+    }

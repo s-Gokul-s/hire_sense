@@ -1,18 +1,29 @@
-from fastapi import FastAPI # Import FastAPI class to create the app
-from app.routes import resume # Import the resume router from your routes package
-from app.routes import jd # Import the job description router from your routes package
-
-# Create a FastAPI application instance
-app =FastAPI()
 
 
-# Create a FastAPI application instance
+# Import the main FastAPI class
+from fastapi import FastAPI 
+# Import the routers for different parts of your application
+from app.routes import resume
+from app.routes import jd
+from app.routes import matcher
+
+# Create a FastAPI application instance with a descriptive title for the docs
+app = FastAPI(title="HireSense AI Resume Shortlister")
+
+# Define a root endpoint to confirm the API is running
 @app.get("/")
 def read_root():
     return {"message": "Hiresense backend is running 🚀"}
 
-# Include the resume router (all resume-related routes are now active)
-app.include_router(resume.router)
-# Include the job description router (all job description-related routes are now active)
-app.include_router(jd.router)
+# --- Include all the application routers ---
 
+# Include the router for job description endpoints (e.g., /upload-jd)
+# The 'tags' argument groups these endpoints in the API documentation for clarity.
+app.include_router(jd.router, tags=["Job Description"])
+
+# Include the router for resume endpoints (e.g., /upload-resumes)
+app.include_router(resume.router, tags=["Resumes"])
+
+# Include the router for the matching engine (e.g., /match, /reset)
+# This makes the matching logic available as API endpoints.
+app.include_router(matcher.router, tags=["Matching Engine"])
