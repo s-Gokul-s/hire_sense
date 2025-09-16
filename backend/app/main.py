@@ -4,11 +4,26 @@
 from fastapi import FastAPI 
 # Import the routers for different parts of your application
 from app.routes import resume
+from fastapi.middleware.cors import CORSMiddleware # Import the CORS middleware
 from app.routes import jd
 from app.routes import matcher
 
 # Create a FastAPI application instance with a descriptive title for the docs
 app = FastAPI(title="HireSense AI Resume Shortlister")
+
+# Add the CORS middleware here
+origins = [
+    "http://localhost:5173",  # The URL of your React development server
+    "http://127.0.0.1:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all HTTP methods (POST, GET, etc.)
+    allow_headers=["*"],  # Allows all headers
+)
 
 # Define a root endpoint to confirm the API is running
 @app.get("/")

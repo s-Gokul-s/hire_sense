@@ -1,48 +1,49 @@
-from fastapi import APIRouter,HTTPException
-
+from fastapi import APIRouter, HTTPException
+from typing import List
 from app.services.preprocess_service import preprocess_text
 from app.services.embedding_service import generate_embedding
-from app.services.scoring_service import calculate_similarity
+# 💡 Import the prediction service
+from app.services.prediction_service import prediction_service 
 
 router = APIRouter()
 
 # Simple in-memory storage for the current session's data
-db = {"jd" : None , "resumes" : []}
+db = {"jd": None, "resumes": []}
 
 @router.post("/match/")
-
 async def match_resumes():
     """
-    Orchestrates the resume matching process by using all services.
+    Orchestrates the resume matching process by using the prediction service.
     """
-
     if not db["jd"]:
-        raise HTTPException(status_code = 404 , detail = "Job Description not uploaded.")
+        raise HTTPException(status_code=404, detail="Job Description not uploaded.")
     if not db["resumes"]:
-        raise HTTPException(status_code = 404 , detail = "No resumes uploaded.")
+        raise HTTPException(status_code=404, detail="No resumes uploaded.")
+
+    # 💡 Extract content for batch processing
+    resume_contents = [resume["content"] for resume in db["resumes"]]
+    jd_content = db["jd"]["content"]
     
-    # Process the Job Description
-    processed_jd = preprocess_text(db["jd"]["content"])
-    # print("--- PROCESSED JOB DESCRIPTION ---", processed_jd, "\n")
-    jd_embedding = generate_embedding(processed_jd)
+    # 💡 Use the efficient predict_batch method to get all scores at once
+    predictions = prediction_service.predict_batch(resume_contents, jd_content)
 
-    # Process and score each resume
-    results = []
-    for resume in db["resumes"]:
-        processed_resume = preprocess_text(resume["content"])
-        # print(f"--- PROCESSED RESUME: {resume['filename']} ---", processed_resume, "\n")
-        resume_embedding = generate_embedding(processed_resume)
-
-        score = calculate_similarity(jd_embedding, resume_embedding)
-
-        results.append({
-            "filename" : resume["filename"],
-            "score" : round(score * 100,2)
+    # 💡 Map the results back to the original resumes
+    ranked_resumes = []
+    for i, resume in enumerate(db["resumes"]):
+        # Use the numerical fit_probability from the prediction service
+        score = predictions[i]["fit_probability"] * 100
+        # 💡 Include the 'prediction' key from the batch results
+        prediction_label = predictions[i]["prediction"] 
+        ranked_resumes.append({
+            "filename": resume["filename"],
+            "score": round(score, 2),
+            "prediction": prediction_label
         })
 
-     # Rank the results by score (highest first)
-    ranked_resumes = sorted(results,key = lambda x : x["score"] , reverse = True)
-    return {"ranked_resumes" : ranked_resumes}
+    # Rank the results by score (highest first)
+    ranked_resumes.sort(key=lambda x: x["score"], reverse=True)
+    
+    return {"ranked_resumes": ranked_resumes}
 
 @router.post("/reset/")
 async def reset_session():

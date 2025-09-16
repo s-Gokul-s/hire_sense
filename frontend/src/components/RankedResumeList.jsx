@@ -11,9 +11,18 @@ export default function RankedResumeList({ rankedResumes }) {
       <ol className="list-decimal list-inside space-y-3">
         {rankedResumes.map((resume, index) => (
           <li key={index} className="p-3 bg-gray-50 rounded-md shadow-sm">
-            <p className="text-lg font-medium text-gray-700">{resume.name}</p>
-            {resume.score && (
-              <p className="text-sm text-gray-500">Fit Score: {resume.score.toFixed(2)}</p>
+            <p className="text-lg font-medium text-gray-700">{resume.filename}</p>
+            {/* 💡 Fixed: Changed `resume.name` to `resume.filename` */}
+            {resume.score && typeof resume.score === 'number' && (
+              <p className="text-sm text-gray-500">
+                Fit Score: {resume.score.toFixed(2)} -
+                <span className={`font-bold ml-1 ${resume.prediction === 'Fit' ? 'text-green-600' : 'text-red-600'}`}>
+                  {resume.prediction}
+                </span>
+              </p>
+            )}
+            {!resume.score || typeof resume.score !== 'number' && (
+              <p className="text-sm text-gray-500">Fit Score: N/A</p>
             )}
           </li>
         ))}

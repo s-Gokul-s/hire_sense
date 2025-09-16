@@ -10,17 +10,64 @@ export default function ShortlisterPage() {
   const [resumes, setResumes] = useState([])
   const [rankedResumes, setRankedResumes] = useState([])
   const [showResults, setShowResults] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
-  const handleGetResults = () => {
-    // 🔁 Replace with actual ML model integration later
-    const mockResults = resumes.map((file, index) => ({
-      name: file.name,
-      score: Math.random() * 100,
-    })).sort((a, b) => b.score - a.score)
+  const handleGetResults = async () => {
+    setIsLoading(true);
+    setShowResults(false);
 
-    setRankedResumes(mockResults)
-    setShowResults(true)
+    try {
+      // Step 1: Upload Job Description
+      const jdFormData = new FormData();
+      if (jobDescription instanceof File) {
+        jdFormData.append('jd_upload', jobDescription);
+      } else {
+        jdFormData.append('jd_text', jobDescription); 
+      }
+      await fetch('http://127.0.0.1:8000/upload-jd', {
+        method: 'POST',
+        body: jdFormData,
+      });
+
+      // Step 2: Upload Resumes
+      const resumeFormData = new FormData();
+      resumes.forEach(file => {
+        resumeFormData.append('files', file); 
+      });
+      await fetch('http://127.0.0.1:8000/upload-resumes', {
+        method: 'POST',
+        body: resumeFormData,
+      });
+
+      // Step 3: Get Ranked Results from the Matching Engine
+      const response = await fetch('http://127.0.0.1:8000/match', {
+        method: 'POST',
+      });
+      const data = await response.json();
+      setRankedResumes(data.ranked_resumes);
+      setShowResults(true);
+
+    } catch (error) {
+      console.error('An error occurred during the shortlisting process:', error);
+    } finally {
+      setIsLoading(false);
+    }
   }
+
+  const handleReset = async () => {
+    try {
+      await fetch('http://127.0.0.1:8000/reset/', {
+        method: 'POST',
+      });
+      setJobDescription('');
+      setResumes([]);
+      setRankedResumes([]);
+      setShowResults(false);
+      console.log('Session has been reset successfully.');
+    } catch (error) {
+      console.error('Failed to reset the session:', error);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white font-[Montserrat]">
@@ -49,13 +96,19 @@ export default function ShortlisterPage() {
 
         <ResumeUpload resumes={resumes} setResumes={setResumes} />
 
-        <div className="mt-6 flex justify-center">
+        <div className="mt-6 flex justify-center space-x-4">
           <button
             onClick={handleGetResults}
-            disabled={!jobDescription || resumes.length === 0}
+            disabled={(!jobDescription && resumes.length === 0) || isLoading}
             className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-3 rounded-md shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
-            Get Result
+            {isLoading ? 'Processing...' : 'Get Result'}
+          </button>
+          <button
+            onClick={handleReset}
+            className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold px-6 py-3 rounded-md shadow-md transition"
+          >
+            Reset
           </button>
         </div>
 
