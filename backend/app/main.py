@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware # Import the CORS middleware
 from app.routes import jd
 from app.routes import matcher
 from app.routes import acceptance
+from app.routes import viewer
 
 # Create a FastAPI application instance with a descriptive title for the docs
 app = FastAPI(title="HireSense AI Resume Shortlister")
@@ -45,3 +46,5 @@ app.include_router(resume.router, tags=["Resumes"])
 app.include_router(matcher.router, tags=["Matching Engine"])
 
 app.include_router(acceptance.router, tags=["Resume Acceptance"])
+
+app.include_router(viewer.router, tags=["Resume Viewer"])
