@@ -114,7 +114,7 @@ export default function ShortlisterPage() {
 
         {showResults && (
           <div className="mt-10">
-            <RankedResumeList rankedResumes={rankedResumes} />
+            <RankedResumeList rankedResumes={rankedResumes} setRankedResumes={setRankedResumes} />
           </div>
         )}
       </main>

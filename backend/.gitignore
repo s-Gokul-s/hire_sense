@@ -1,0 +1,15 @@
+# Ignore temporary and user-uploaded files
+accepted_resumes/
+temp_resumes/
+
+# Ignore Python environment and cache files
+__pycache__/
+*.pyc
+.venv/
+env/
+
+# Ignore IDE files (e.g., VS Code)
+.vscode/
+
+# Ignore generated files and logs
+*.log
