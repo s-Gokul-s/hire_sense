@@ -11,6 +11,7 @@ from app.routes import acceptance
 from app.routes import viewer
 from app.routes import insights
 from app.routes import reports
+from app.routes import analytics
 # Create a FastAPI application instance with a descriptive title for the docs
 app = FastAPI(title="HireSense AI Resume Shortlister")
 
@@ -53,3 +54,5 @@ app.include_router(viewer.router, tags=["Resume Viewer"])
 app.include_router(insights.router, tags=["Insights"])
 
 app.include_router(reports.router,tags=["Reports"])
+
+app.include_router(analytics.router, tags=["Analytics & Dashboard"])

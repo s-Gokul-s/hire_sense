@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function RankedResumeList({ rankedResumes, setRankedResumes }) {
+export default function RankedResumeList({ rankedResumes, setRankedResumes, numToShow }) {
   const [selectedResume, setSelectedResume] = useState(null);
   const [insights, setInsights] = useState(null);
 
@@ -67,13 +67,13 @@ export default function RankedResumeList({ rankedResumes, setRankedResumes }) {
     }
   };
 
-  // Only keep Excel and Zip download handlers
+  // NEW: Pass the `numToShow` value as a query parameter
   const handleDownloadExcel = () => {
-    window.location.href = "http://127.0.0.1:8000/reports/export-excel";
+    window.location.href = `http://127.0.0.1:8000/reports/export-excel?limit=${numToShow}`;
   };
   
   const handleDownloadZip = () => {
-    window.location.href = "http://127.0.0.1:8000/reports/download-resumes-zip";
+    window.location.href = `http://127.0.0.1:8000/reports/download-resumes-zip?limit=${numToShow}`;
   };
 
 

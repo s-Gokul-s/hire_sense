@@ -1,6 +1,6 @@
 import io
-from typing import List, Dict, Any
-from fastapi import APIRouter
+from typing import List, Dict, Any, Optional
+from fastapi import APIRouter, Query, HTTPException
 from fastapi.responses import StreamingResponse
 
 # IMPORTANT: Ensure these imports are correct based on your project structure.
@@ -34,44 +34,41 @@ def _prepare_ranked_data() -> List[Dict[str, Any]] | None:
         prediction_result = scoring_service.predict(resume_text, jd_text)
         skills_data = get_skill_matches(jd_text, resume_text)
         
+        # --- KEY FIX ---
+        # The prediction service returns a string like "85.50%". We must convert it to a number.
         hybrid_score_str = prediction_result["hybrid_fit_score"]
-        # Convert "85.50%" -> 85.5 for proper numerical sorting
+        # Strip the '%' sign and convert the result to a float for calculation.
         relevance_score = float(hybrid_score_str.strip('%')) 
         
+        # We store the float value for sorting and the formatted string for display.
         report_data.append({
             "Resume Filename": resume["filename"],
-            "Relevance Score (Float)": relevance_score, # Use float for internal sorting
+            # Store the score as an integer percentage for sorting and Excel
+            "Relevance Score (%)": int(round(relevance_score)),
             "Matched Skills": ", ".join(skills_data["matched_skills"]),
-            "Missing Skills": ", ".join(skills_data["missing_skills"])
+            "Missing Skills": ", ".join(skills_data["missing_skills"]),
         })
 
-    # 2. Sort data by relevance score
-    ranked_data = sorted(report_data, key=lambda x: x["Relevance Score (Float)"], reverse=True)
+    # 2. Sort by score
+    sorted_data = sorted(report_data, key=lambda x: x["Relevance Score (%)"], reverse=True)
 
-    # 3. Add Rank column and format score back to percentage string for display
-    final_ranked_data = []
-    for i, data in enumerate(ranked_data):
-        # Remove the float score key and add display score
-        score_float = data.pop("Relevance Score (Float)")
-        
-        final_ranked_data.append({
-            "Rank": i + 1,
-            "Resume Filename": data["Resume Filename"],
-            "Relevance Score (%)": f"{score_float:.2f}%",
-            "Matched Skills": data["Matched Skills"],
-            "Missing Skills": data["Missing Skills"]
-        })
+    # 3. Add rank
+    for i, item in enumerate(sorted_data):
+        item["Rank"] = i + 1
 
-    return final_ranked_data
-
+    return sorted_data
 
 @router.get("/reports/export-excel", summary="Export Ranked Resumes & Skills to Excel")
-async def export_excel_report():
+async def export_excel_report(limit: Optional[int] = Query(None, description="Limit the number of resumes to export")):
     """Delegates to the service layer to generate and stream an Excel file."""
     ranked_data = _prepare_ranked_data()
     if ranked_data is None:
-        return {"error": "No job description or resumes have been uploaded."}
+        raise HTTPException(status_code=404, detail="No job description or resumes have been uploaded.")
     
+    # Apply limit
+    if limit is not None and limit > 0:
+        ranked_data = ranked_data[:limit]
+
     excel_buffer = generate_excel_report(ranked_data)
     
     return StreamingResponse(
@@ -81,35 +78,29 @@ async def export_excel_report():
     )
 
 
-@router.get("/reports/export-csv", summary="Export Ranked Resumes & Skills to CSV")
-async def export_csv_report():
-    """Delegates to the service layer to generate and stream a CSV file."""
-    ranked_data = _prepare_ranked_data()
-    if ranked_data is None:
-        return {"error": "No job description or resumes have been uploaded."}
-    
-    csv_buffer = generate_csv_report(ranked_data)
-    
-    return StreamingResponse(
-        content=csv_buffer,
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=resume_insights.csv"}
-    )
-
-
 @router.get("/reports/download-resumes-zip", summary="Download all remaining ranked resumes as a ZIP file")
-async def download_remaining_resumes():
+async def download_remaining_resumes(limit: Optional[int] = Query(None, description="Limit the number of resumes to download")):
     """
-    Creates a ZIP archive containing all resume files currently present in the ranked list (db['resumes']).
+    Creates a ZIP archive containing the top N resume files based on the ranked list (db['resumes']).
     """
     if not db.get("resumes"):
-        return {"error": "No resumes remain in the current ranked list to download."}
+        raise HTTPException(status_code=404, detail="No resumes remain in the current ranked list to download.")
+    
+    # Sort the resumes by score before applying the limit
+    # This assumes a 'score' key is added by a /match endpoint.
+    sorted_resumes = sorted(db["resumes"], key=lambda r: r.get("score", 0), reverse=True)
+    
+    # Apply the limit to the sorted list
+    resumes_to_zip = sorted_resumes[:limit] if limit is not None and limit > 0 else sorted_resumes
 
-    # The service function expects the list of resume dictionaries from the data store
-    zip_buffer = generate_resumes_zip(db["resumes"])
+    if not resumes_to_zip:
+        raise HTTPException(status_code=404, detail="No resumes found for the specified limit.")
+
+    # Pass the correctly filtered list of resume dictionaries to the service function
+    zip_buffer = generate_resumes_zip(resumes_to_zip)
 
     return StreamingResponse(
         content=zip_buffer,
         media_type="application/zip",
-        headers={"Content-Disposition": "attachment; filename=Remaining_Resumes.zip"}
+        headers={"Content-Disposition": "attachment; filename=ranked_resumes.zip"}
     )

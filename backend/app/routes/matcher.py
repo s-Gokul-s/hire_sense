@@ -60,13 +60,11 @@ async def upload_jd(file: UploadFile = File(...)):
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # --- FIX START ---
         # The extractor needs the file stream and content type.
         # We must re-open the saved file to get the stream.
         with open(file_path, "rb") as saved_file:
             # Pass the file stream and content type to your unified extractor
             content = extract_text_from_file(saved_file, file.content_type)
-        # --- FIX END ---
         
         db["jd"] = {"filename": jd_filename, "content": content}
 
@@ -94,13 +92,11 @@ async def upload_resumes(files: List[UploadFile] = File(...)):
             with open(file_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
             
-            # --- FIX START ---
             # The extractor needs the file stream and content type.
             # We must re-open the saved file to get the stream.
             with open(file_path, "rb") as saved_file:
                 # Pass the file stream and content type to your unified extractor
                 content = extract_text_from_file(saved_file, file.content_type)
-            # --- FIX END ---
 
             db["resumes"].append({"filename": resume_filename, "content": content})
             uploaded_files.append(resume_filename)
@@ -110,7 +106,7 @@ async def upload_resumes(files: List[UploadFile] = File(...)):
             continue # Continue to next file if one fails
     
     if not uploaded_files:
-         raise HTTPException(status_code=500, detail="No resumes were uploaded successfully.")
+        raise HTTPException(status_code=500, detail="No resumes were uploaded successfully.")
 
     return {"uploaded_files": uploaded_files, "message": f"{len(uploaded_files)} resumes uploaded and processed successfully."}
 
@@ -132,7 +128,10 @@ async def match_resumes():
     # Get hybrid predictions from the PredictionService
     predictions = prediction_service.predict_batch(resume_contents, jd_content)
 
+    # We will build the ranked list here, but first, ensure the scores are 
+    # written back to the original db["resumes"] list for /analytics access.
     ranked_resumes = []
+    
     for i, resume in enumerate(db["resumes"]):
         pred = predictions[i]
 
@@ -143,13 +142,15 @@ async def match_resumes():
         # Extract matched/missing skills for transparency
         skill_breakdown = get_skill_matches(jd_content, resume_contents[i])
 
-        ranked_resumes.append({
-            "filename": resume["filename"],
-            "score": round(hybrid_score, 2),
-            "prediction": prediction_label,
-            "matched_skills": skill_breakdown["matched_skills"],
-            "missing_skills": skill_breakdown["missing_skills"]
-        })
+        # === FIX: INJECT THE MATCHING DATA INTO THE ORIGINAL DB OBJECT ===
+        resume["score"] = round(hybrid_score, 2)
+        resume["prediction"] = prediction_label
+        resume["matched_skills"] = skill_breakdown["matched_skills"]
+        resume["missing_skills"] = skill_breakdown["missing_skills"]
+        # ================================================================
+
+        # Add the updated resume object (which now contains score and skills) to the list to be ranked
+        ranked_resumes.append(resume)
 
     # Rank the results by hybrid score (highest first)
     ranked_resumes.sort(key=lambda x: x["score"], reverse=True)
